@@ -158,20 +158,13 @@ class MovaCloudAPI:
             if resp.get("code") != 0:
                 _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
                 return {}
-            raw = resp.get("data") or []
-            _LOGGER.debug("get_properties_cached data type=%s value=%s", type(raw).__name__, raw)
             result = {}
-            if isinstance(raw, list):
-                for r in raw:
-                    if r.get("code", 0) == 0:
-                        result[(r["siid"], r["piid"])] = r["value"]
-            elif isinstance(raw, dict):
-                for key, value in raw.items():
-                    try:
-                        s, p = key.split(".")
-                        result[(int(s), int(p))] = value
-                    except (ValueError, AttributeError):
-                        pass
+            for entry in resp.get("data") or []:
+                try:
+                    s, p = entry["key"].split(".")
+                    result[(int(s), int(p))] = entry["value"]
+                except (KeyError, ValueError, AttributeError):
+                    pass
             return result
         except Exception as exc:
             _LOGGER.error("get_properties_cached exception %s: %s", type(exc).__name__, exc)
@@ -229,9 +222,9 @@ class MovaFeeder:
             self.available = False
             return
         self.available = True
-        self.online = bool(props.get(PROP_ONLINE, False))
-        self.schedule_enabled = bool(props.get(PROP_SCHEDULE_ON, True))
-        self.sound_enabled = bool(props.get(PROP_SOUND_ON, True))
+        self.online = int(props.get(PROP_ONLINE, 0)) != 0
+        self.schedule_enabled = int(props.get(PROP_SCHEDULE_ON, 1)) != 0
+        self.sound_enabled = int(props.get(PROP_SOUND_ON, 1)) != 0
         self.portion_size = int(props.get(PROP_PORTION_SIZE, 1))
         self.feedings_today = int(props.get(PROP_FEEDINGS_TODAY, 0))
         self.schedule_hex = str(props.get(PROP_SCHEDULE, ""))
