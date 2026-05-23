@@ -138,9 +138,9 @@ class MovaCloudAPI:
             ).json()
             if resp.get("code") == 0 and resp.get("data"):
                 return resp["data"]
-            _LOGGER.debug("sendCommand code=%s msg=%s", resp.get("code"), resp.get("msg"))
+            _LOGGER.warning("sendCommand failed code=%s msg=%s resp=%s", resp.get("code"), resp.get("msg"), resp)
         except Exception as exc:
-            _LOGGER.error("sendCommand exception: %s", exc)
+            _LOGGER.error("sendCommand exception %s: %s", type(exc).__name__, exc)
         return None
 
     def get_properties(self, did: str, bind_domain: str, props: list[tuple[int, int]], cmd_id: int = 1) -> dict[tuple, Any]:
