@@ -12,7 +12,7 @@ for mod in ["homeassistant", "homeassistant.const", "homeassistant.components"]:
 PROPS = dict(
     PROP_ONLINE=(2,1), PROP_STATUS=(2,2), PROP_SCHEDULE_ON=(3,2),
     PROP_SOUND_ON=(3,3), PROP_PORTION_SIZE=(3,4), PROP_MAX_FEEDINGS=(3,5),
-    PROP_SCHEDULE=(3,6), PROP_FEEDINGS_TODAY=(5,1),
+    PROP_SCHEDULE=(3,6), PROP_FEEDINGS_TODAY=(5,1), PROP_FOOD_LEVEL=(4,2),
     ACTION_FEED_SIID=3, ACTION_FEED_AIID=1, ACTION_FEED_PIID=1,
     FROM_FIELD="I13bd2b", DOMAIN="mova_petfeeder",
 )
@@ -59,4 +59,7 @@ for d in devices:
     print(f"  sound_on      : {feeder.sound_enabled}")
     print(f"  portion_size  : {feeder.portion_size}")
     print(f"  feedings_today: {feeder.feedings_today}")
+    print(f"  food_level    : {feeder.food_level}%")
     print(f"  schedule_hex  : {feeder.schedule_hex}")
+    print(f"  schedule      : {feeder.schedule_entries}")
+    print(f"  manual_portions: {feeder.manual_portions}")

@@ -17,6 +17,7 @@ PROP_PORTION_SIZE    = (3, 4)
 PROP_MAX_FEEDINGS    = (3, 5)
 PROP_SCHEDULE        = (3, 6)
 PROP_FEEDINGS_TODAY  = (5, 1)
+PROP_FOOD_LEVEL      = (4, 2)
 
 # MiOT action: manual feed
 # params = {did, siid:3, aiid:1, in:[{piid:1, value:portions}]}

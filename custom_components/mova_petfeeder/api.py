@@ -12,6 +12,7 @@ from .const import (
     ACTION_FEED_SIID,
     FROM_FIELD,
     PROP_FEEDINGS_TODAY,
+    PROP_FOOD_LEVEL,
     PROP_ONLINE,
     PROP_PORTION_SIZE,
     PROP_SCHEDULE,
@@ -36,6 +37,7 @@ _POLL_PROPS = [
     PROP_PORTION_SIZE,
     PROP_SCHEDULE,
     PROP_FEEDINGS_TODAY,
+    PROP_FOOD_LEVEL,
 ]
 
 
@@ -194,6 +196,25 @@ class MovaCloudAPI:
         return self._uid
 
 
+def _parse_schedule(hex_str: str) -> list[dict]:
+    """Decode schedule hex: each entry is FF HH MM portions enabled (5 bytes = 10 hex chars)."""
+    entries = []
+    s = hex_str.upper().replace(" ", "")
+    i = 0
+    while i + 10 <= len(s):
+        if s[i:i+2] == "FF":
+            try:
+                hour = int(s[i+2:i+4], 16)
+                minute = int(s[i+4:i+6], 16)
+                portions = int(s[i+6:i+8], 16)
+                enabled = int(s[i+8:i+10], 16) != 0
+                entries.append({"time": f"{hour:02d}:{minute:02d}", "portions": portions, "enabled": enabled})
+            except ValueError:
+                pass
+        i += 10
+    return entries
+
+
 class MovaFeeder:
     def __init__(self, api: MovaCloudAPI, device_info: dict) -> None:
         self._api = api
@@ -208,8 +229,11 @@ class MovaFeeder:
         self.schedule_enabled: bool = True
         self.sound_enabled: bool = True
         self.portion_size: int = 1
+        self.manual_portions: int = 1
         self.feedings_today: int = 0
+        self.food_level: int = 0
         self.schedule_hex: str = ""
+        self.schedule_entries: list[dict] = []
         self.available: bool = False
 
     def _next_id(self) -> int:
@@ -227,14 +251,19 @@ class MovaFeeder:
         self.sound_enabled = int(props.get(PROP_SOUND_ON, 1)) != 0
         self.portion_size = int(props.get(PROP_PORTION_SIZE, 1))
         self.feedings_today = int(props.get(PROP_FEEDINGS_TODAY, 0))
+        self.food_level = int(props.get(PROP_FOOD_LEVEL, 0))
         self.schedule_hex = str(props.get(PROP_SCHEDULE, ""))
+        self.schedule_entries = _parse_schedule(self.schedule_hex)
 
     def feed(self, portions: int | None = None) -> bool:
         return self._api.action_feed(
             self.did, self.bind_domain,
-            portions if portions is not None else self.portion_size,
+            portions if portions is not None else self.manual_portions,
             self._next_id(),
         )
+
+    def set_manual_portions(self, n: int) -> None:
+        self.manual_portions = n
 
     def set_schedule_enabled(self, enabled: bool) -> bool:
         return self._api.set_property(self.did, self.bind_domain, *PROP_SCHEDULE_ON, enabled, self._next_id())
