@@ -158,14 +158,20 @@ class MovaCloudAPI:
             if resp.get("code") != 0:
                 _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
                 return {}
-            raw = resp.get("data") or {}
+            raw = resp.get("data") or []
+            _LOGGER.debug("get_properties_cached data type=%s value=%s", type(raw).__name__, raw)
             result = {}
-            for key, value in raw.items():
-                try:
-                    s, p = key.split(".")
-                    result[(int(s), int(p))] = value
-                except (ValueError, AttributeError):
-                    pass
+            if isinstance(raw, list):
+                for r in raw:
+                    if r.get("code", 0) == 0:
+                        result[(r["siid"], r["piid"])] = r["value"]
+            elif isinstance(raw, dict):
+                for key, value in raw.items():
+                    try:
+                        s, p = key.split(".")
+                        result[(int(s), int(p))] = value
+                    except (ValueError, AttributeError):
+                        pass
             return result
         except Exception as exc:
             _LOGGER.error("get_properties_cached exception %s: %s", type(exc).__name__, exc)
