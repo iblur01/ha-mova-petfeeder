@@ -116,6 +116,8 @@ class MovaCloudAPI:
             return []
 
     def _send(self, did: str, bind_domain: str, method: str, params: Any, cmd_id: int) -> dict | None:
+        url = _cmd_url(self._base, bind_domain)
+        _LOGGER.debug("sendCommand url=%s method=%s", url, method)
         payload = {
             "did": did,
             "id": cmd_id,
@@ -129,7 +131,7 @@ class MovaCloudAPI:
         }
         try:
             resp = requests.post(
-                _cmd_url(self._base, bind_domain),
+                url,
                 headers=self._headers_api(),
                 data=json.dumps(payload, separators=(",", ":")),
                 timeout=20,
@@ -143,12 +145,18 @@ class MovaCloudAPI:
 
     def get_properties(self, did: str, bind_domain: str, props: list[tuple[int, int]], cmd_id: int = 1) -> dict[tuple, Any]:
         params = [{"siid": s, "piid": p, "did": did} for s, p in props]
+        _LOGGER.debug("get_properties did=%s bind_domain=%s props=%s", did, bind_domain, props)
         data = self._send(did, bind_domain, "get_properties", params, cmd_id)
+        _LOGGER.debug("get_properties raw response: %s", data)
         result = {}
         if data and "result" in data:
             for r in data["result"]:
                 if r.get("code", -1) == 0:
                     result[(r["siid"], r["piid"])] = r["value"]
+                else:
+                    _LOGGER.debug("prop (%s,%s) failed code=%s", r.get("siid"), r.get("piid"), r.get("code"))
+        else:
+            _LOGGER.warning("get_properties returned no data for did=%s bind_domain=%s", did, bind_domain)
         return result
 
     def set_property(self, did: str, bind_domain: str, siid: int, piid: int, value: Any, cmd_id: int = 1) -> bool:
