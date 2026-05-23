@@ -143,21 +143,33 @@ class MovaCloudAPI:
             _LOGGER.error("sendCommand exception %s: %s", type(exc).__name__, exc)
         return None
 
-    def get_properties(self, did: str, bind_domain: str, props: list[tuple[int, int]], cmd_id: int = 1) -> dict[tuple, Any]:
-        params = [{"siid": s, "piid": p, "did": did} for s, p in props]
-        _LOGGER.debug("get_properties did=%s bind_domain=%s props=%s", did, bind_domain, props)
-        data = self._send(did, bind_domain, "get_properties", params, cmd_id)
-        _LOGGER.debug("get_properties raw response: %s", data)
-        result = {}
-        if data and "result" in data:
-            for r in data["result"]:
-                if r.get("code", -1) == 0:
-                    result[(r["siid"], r["piid"])] = r["value"]
-                else:
-                    _LOGGER.debug("prop (%s,%s) failed code=%s", r.get("siid"), r.get("piid"), r.get("code"))
-        else:
-            _LOGGER.warning("get_properties returned no data for did=%s bind_domain=%s", did, bind_domain)
-        return result
+    def get_properties_cached(self, did: str, props: list[tuple[int, int]]) -> dict[tuple, Any]:
+        """Read properties from cloud cache — works even when device is offline."""
+        keys = ",".join(f"{s}.{p}" for s, p in props)
+        _LOGGER.debug("get_properties_cached did=%s keys=%s", did, keys)
+        try:
+            resp = requests.post(
+                f"{self._base}/dreame-user-iot/iotstatus/props",
+                headers=self._headers_api(),
+                data=json.dumps({"did": did, "keys": keys}, separators=(",", ":")),
+                timeout=15,
+            ).json()
+            _LOGGER.debug("get_properties_cached response: %s", resp)
+            if resp.get("code") != 0:
+                _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
+                return {}
+            raw = resp.get("data") or {}
+            result = {}
+            for key, value in raw.items():
+                try:
+                    s, p = key.split(".")
+                    result[(int(s), int(p))] = value
+                except (ValueError, AttributeError):
+                    pass
+            return result
+        except Exception as exc:
+            _LOGGER.error("get_properties_cached exception %s: %s", type(exc).__name__, exc)
+            return {}
 
     def set_property(self, did: str, bind_domain: str, siid: int, piid: int, value: Any, cmd_id: int = 1) -> bool:
         data = self._send(did, bind_domain, "set_properties",
@@ -206,7 +218,7 @@ class MovaFeeder:
         return self._cmd_id
 
     def update(self) -> None:
-        props = self._api.get_properties(self.did, self.bind_domain, _POLL_PROPS, self._next_id())
+        props = self._api.get_properties_cached(self.did, _POLL_PROPS)
         if not props:
             self.available = False
             return
