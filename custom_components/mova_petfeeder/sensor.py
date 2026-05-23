@@ -75,7 +75,7 @@ class MovaPortionSizeSensor(_MovaBaseSensor):
 class MovaFoodLevelSensor(_MovaBaseSensor):
     _attr_icon = "mdi:food-drumstick"
     _attr_name = "Food level"
-    _attr_native_unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = "g"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, feeder) -> None:
