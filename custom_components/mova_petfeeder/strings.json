@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mova Pet Feeder",
+        "description": "Enter your MOVAhome app credentials.",
+        "data": {
+          "username": "Email",
+          "password": "Password",
+          "country": "Server region"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials",
+      "no_devices": "No Mova feeders found on this account"
+    },
+    "abort": {
+      "already_configured": "Account already configured"
+    }
+  }
+}

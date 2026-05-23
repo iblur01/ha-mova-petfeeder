@@ -1,0 +1,12 @@
+{
+  "domain": "mova_petfeeder",
+  "name": "Mova Pet Feeder",
+  "codeowners": ["@theo"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/theo/mova-PF10",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/theo/mova-PF10/issues",
+  "requirements": ["requests>=2.28.0"],
+  "version": "0.1.0"
+}
