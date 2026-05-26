@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -31,10 +32,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
     async def async_update():
+        """Update data via parallel executor jobs."""
         try:
-            for feeder in feeders:
-                await hass.async_add_executor_job(feeder.update)
+            await asyncio.gather(
+                *(hass.async_add_executor_job(feeder.update) for feeder in feeders)
+            )
         except Exception as exc:
+            _LOGGER.error("Update failed: %s", exc)
             raise UpdateFailed(exc) from exc
         return feeders
 

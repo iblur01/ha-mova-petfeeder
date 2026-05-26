@@ -102,20 +102,34 @@ class MovaCloudAPI:
             _LOGGER.error("Login exception: %s", exc)
             return False
 
-    def get_feeders(self) -> list[dict]:
+    def _post_api(self, url: str, data: Any = None, timeout: int = 15, retry: bool = True) -> dict:
+        """Helper to send API request and handle token expiration."""
         try:
-            resp = requests.post(
-                f"{self._base}/dreame-user-iot/iotuserbind/device/listV2",
-                headers=self._headers_api(),
-                timeout=15,
-            ).json()
-            if resp.get("code") != 0:
-                return []
-            records = resp.get("data", {}).get("page", {}).get("records", [])
-            return [d for d in records if "feeder" in d.get("model", "")]
+            kwargs = {"headers": self._headers_api(), "timeout": timeout}
+            if data is not None:
+                kwargs["data"] = data
+            resp = requests.post(url, **kwargs).json()
+            
+            # If token expired or unauthorized, cloud usually returns non-zero code.
+            # We try to re-login and retry once.
+            if resp.get("code") != 0 and retry:
+                _LOGGER.info("API request failed with code %s, trying to re-login", resp.get("code"))
+                if self.login():
+                    return self._post_api(url, data, timeout, retry=False)
+            return resp
         except Exception as exc:
-            _LOGGER.error("get_feeders exception: %s", exc)
+            _LOGGER.error("API request exception %s: %s", type(exc).__name__, exc)
+            return {}
+
+    def get_feeders(self) -> list[dict]:
+        resp = self._post_api(
+            f"{self._base}/dreame-user-iot/iotuserbind/device/listV2",
+            timeout=15,
+        )
+        if resp.get("code") != 0:
             return []
+        records = resp.get("data", {}).get("page", {}).get("records", [])
+        return [d for d in records if "feeder" in d.get("model", "")]
 
     def _send(self, did: str, bind_domain: str, method: str, params: Any, cmd_id: int) -> dict | None:
         url = _cmd_url(self._base, bind_domain)
@@ -131,46 +145,37 @@ class MovaCloudAPI:
                 "from": FROM_FIELD,
             },
         }
-        try:
-            resp = requests.post(
-                url,
-                headers=self._headers_api(),
-                data=json.dumps(payload, separators=(",", ":")),
-                timeout=20,
-            ).json()
-            if resp.get("code") == 0 and resp.get("data"):
-                return resp["data"]
-            _LOGGER.warning("sendCommand failed code=%s msg=%s resp=%s", resp.get("code"), resp.get("msg"), resp)
-        except Exception as exc:
-            _LOGGER.error("sendCommand exception %s: %s", type(exc).__name__, exc)
+        resp = self._post_api(
+            url,
+            data=json.dumps(payload, separators=(",", ":")),
+            timeout=20,
+        )
+        if resp.get("code") == 0 and resp.get("data"):
+            return resp["data"]
+        _LOGGER.warning("sendCommand failed code=%s msg=%s resp=%s", resp.get("code"), resp.get("msg"), resp)
         return None
 
     def get_properties_cached(self, did: str, props: list[tuple[int, int]]) -> dict[tuple, Any]:
         """Read properties from cloud cache — works even when device is offline."""
         keys = ",".join(f"{s}.{p}" for s, p in props)
         _LOGGER.debug("get_properties_cached did=%s keys=%s", did, keys)
-        try:
-            resp = requests.post(
-                f"{self._base}/dreame-user-iot/iotstatus/props",
-                headers=self._headers_api(),
-                data=json.dumps({"did": did, "keys": keys}, separators=(",", ":")),
-                timeout=15,
-            ).json()
-            _LOGGER.debug("get_properties_cached response: %s", resp)
-            if resp.get("code") != 0:
-                _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
-                return {}
-            result = {}
-            for entry in resp.get("data") or []:
-                try:
-                    s, p = entry["key"].split(".")
-                    result[(int(s), int(p))] = entry["value"]
-                except (KeyError, ValueError, AttributeError):
-                    pass
-            return result
-        except Exception as exc:
-            _LOGGER.error("get_properties_cached exception %s: %s", type(exc).__name__, exc)
+        resp = self._post_api(
+            f"{self._base}/dreame-user-iot/iotstatus/props",
+            data=json.dumps({"did": did, "keys": keys}, separators=(",", ":")),
+            timeout=15,
+        )
+        _LOGGER.debug("get_properties_cached response: %s", resp)
+        if resp.get("code") != 0:
+            _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
             return {}
+        result = {}
+        for entry in resp.get("data") or []:
+            try:
+                s, p = entry["key"].split(".")
+                result[(int(s), int(p))] = entry["value"]
+            except (KeyError, ValueError, AttributeError):
+                pass
+        return result
 
     def set_property(self, did: str, bind_domain: str, siid: int, piid: int, value: Any, cmd_id: int = 1) -> bool:
         data = self._send(did, bind_domain, "set_properties",
