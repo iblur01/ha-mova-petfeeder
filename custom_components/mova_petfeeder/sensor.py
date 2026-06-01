@@ -15,7 +15,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     entities = []
     for feeder in feeders:
         entities += [
-            MovaFeedingsTodaySensor(coordinator, feeder),
             MovaPortionSizeSensor(coordinator, feeder),
             MovaFoodLevelSensor(coordinator, feeder),
             MovaScheduleSensor(coordinator, feeder),
@@ -42,20 +41,6 @@ class _MovaBaseSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         return self._feeder.available
-
-
-class MovaFeedingsTodaySensor(_MovaBaseSensor):
-    _attr_icon = "mdi:counter"
-    _attr_name = "Feedings today"
-    _attr_native_unit_of_measurement = "feedings"
-
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_feedings_today"
-
-    @property
-    def native_value(self):
-        return self._feeder.feedings_today
 
 
 class MovaPortionSizeSensor(_MovaBaseSensor):

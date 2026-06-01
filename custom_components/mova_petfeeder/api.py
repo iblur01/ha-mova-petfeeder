@@ -11,7 +11,6 @@ from .const import (
     ACTION_FEED_PIID,
     ACTION_FEED_SIID,
     FROM_FIELD,
-    PROP_FEEDINGS_TODAY,
     PROP_FOOD_LEVEL,
     PROP_ONLINE,
     PROP_PORTION_SIZE,
@@ -29,6 +28,10 @@ _APP_AUTH = "Basic ZHJlYW1lX2FwcHYxOkFQXmR2QHpAU1FZVnhOODg="
 _TENANT_ID = "000002"
 _RLC = "1c80b3787b2266776bcdc481f37d8fa42ba10a30af81a6df-1"
 
+# Number of consecutive empty cache reads tolerated before marking the feeder
+# unavailable. A single cloud blip should not flip every entity to gray.
+_UNAVAILABLE_GRACE = 3
+
 _POLL_PROPS = [
     PROP_ONLINE,
     PROP_STATUS,
@@ -36,7 +39,6 @@ _POLL_PROPS = [
     PROP_SOUND_ON,
     PROP_PORTION_SIZE,
     PROP_SCHEDULE,
-    PROP_FEEDINGS_TODAY,
     PROP_FOOD_LEVEL,
 ]
 
@@ -235,11 +237,11 @@ class MovaFeeder:
         self.sound_enabled: bool = True
         self.portion_size: int = 1
         self.manual_portions: int = 1
-        self.feedings_today: int = 0
         self.food_level: int = 0
         self.schedule_hex: str = ""
         self.schedule_entries: list[dict] = []
         self.available: bool = False
+        self._empty_reads: int = 0
 
     def _next_id(self) -> int:
         self._cmd_id += 1
@@ -248,17 +250,29 @@ class MovaFeeder:
     def update(self) -> None:
         props = self._api.get_properties_cached(self.did, _POLL_PROPS)
         if not props:
-            self.available = False
+            # Tolerate a few empty cloud-cache reads before going unavailable,
+            # and keep the last known values meanwhile.
+            self._empty_reads += 1
+            if self._empty_reads >= _UNAVAILABLE_GRACE:
+                self.available = False
             return
+        self._empty_reads = 0
         self.available = True
-        self.online = int(props.get(PROP_ONLINE, 0)) != 0
-        self.schedule_enabled = int(props.get(PROP_SCHEDULE_ON, 1)) != 0
-        self.sound_enabled = int(props.get(PROP_SOUND_ON, 1)) != 0
-        self.portion_size = int(props.get(PROP_PORTION_SIZE, 1))
-        self.feedings_today = int(props.get(PROP_FEEDINGS_TODAY, 0))
-        self.food_level = int(props.get(PROP_FOOD_LEVEL, 0))
-        self.schedule_hex = str(props.get(PROP_SCHEDULE, ""))
-        self.schedule_entries = _parse_schedule(self.schedule_hex)
+        # Only overwrite a field when its property is present in this read; the
+        # cache occasionally omits a key, and blanking it would flicker the UI.
+        if PROP_ONLINE in props:
+            self.online = int(props[PROP_ONLINE]) != 0
+        if PROP_SCHEDULE_ON in props:
+            self.schedule_enabled = int(props[PROP_SCHEDULE_ON]) != 0
+        if PROP_SOUND_ON in props:
+            self.sound_enabled = int(props[PROP_SOUND_ON]) != 0
+        if PROP_PORTION_SIZE in props:
+            self.portion_size = int(props[PROP_PORTION_SIZE])
+        if PROP_FOOD_LEVEL in props:
+            self.food_level = int(props[PROP_FOOD_LEVEL])
+        if PROP_SCHEDULE in props:
+            self.schedule_hex = str(props[PROP_SCHEDULE])
+            self.schedule_entries = _parse_schedule(self.schedule_hex)
 
     def feed(self, portions: int | None = None) -> bool:
         return self._api.action_feed(
