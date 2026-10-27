@@ -1,0 +1,3 @@
+pytest-homeassistant-custom-component==0.13.184
+# acme (via hass-nabucasa) breaks with josepy 2.x
+josepy<2
