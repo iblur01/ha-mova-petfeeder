@@ -167,9 +167,16 @@ class CoordinatorHATest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(coordinator.data[ONLINE_DID].schedule), 4)
 
     async def test_remove_obsolete_entities(self) -> None:
+        for registry_module in (dr, er):  # HA >= 2026: setup avant load
+            if hasattr(registry_module, "async_setup"):
+                registry_module.async_setup(self.hass)
         await dr.async_load(self.hass)
         await er.async_load(self.hass)
         entry = _entry(ConfigEntryState.LOADED)
+        # HA >= 2026 : le registre vérifie que l'entrée existe
+        self.hass.config_entries = SimpleNamespace(
+            async_get_entry=lambda entry_id: entry if entry_id == entry.entry_id else None
+        )
         registry = er.async_get(self.hass)
         for suffix in ("_portion_size_sensor", "_manual_portions", "_portion_size", "_feed"):
             registry.async_get_or_create(

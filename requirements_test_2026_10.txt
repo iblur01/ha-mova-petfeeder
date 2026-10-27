@@ -1,0 +1,5 @@
+# Home Assistant 2026.10.4 (needs Python >= 3.14.2)
+pytest-homeassistant-custom-component==0.13.375
+# Tests are unittest classes and do not use the plugin fixtures; with pytest 9
+# its autouse async fixtures raise on sync tests, so run:
+#   PYTHONPATH=tests:. pytest tests -v -p no:homeassistant

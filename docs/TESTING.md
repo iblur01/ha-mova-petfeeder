@@ -19,6 +19,16 @@ Les fixtures (`tests/fixtures/`) sont masquées.
 
 Exécutés uniquement si `homeassistant` est installé : réauth au premier refresh, `ConfigEntryNotReady`, tolérance de 3 échecs, distribution (refus, refresh programmé), pas de refresh après échec, écriture de planning refusée/acceptée selon l'option, diagnostic masqué, suppression des entités obsolètes, migration v1 vers v2.
 
+## Avec Home Assistant 2026.10
+
+Avec `requirements_test_2026_10.txt` (HA 2026.10.4 et `pytest-homeassistant-custom-component`), désactiver le plugin, sinon sa fixture async autouse `configure_event_loop` met les tests unittest synchrones en erreur (`PytestRemovedIn9Warning`) :
+
+```bash
+PYTHONPATH=tests:. python -m pytest tests -q -p no:homeassistant
+```
+
+Sous HA 2024.11, la commande reste `PYTHONPATH=tests:. python -m pytest tests -q`.
+
 ## Non testé
 
 - Client aiohttp réel (réseau, TLS, vrais codes d'erreur du cloud).
