@@ -21,6 +21,7 @@
     "error": {
       "invalid_auth": "Invalid credentials",
       "cannot_connect": "Cannot reach the MOVAhome cloud",
+      "api_error": "The MOVAhome cloud returned an error. Check the logs.",
       "no_devices": "No Mova feeders found on this account",
       "unknown": "Unexpected error"
     },

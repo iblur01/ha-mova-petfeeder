@@ -21,6 +21,7 @@
     "error": {
       "invalid_auth": "Identifiants invalides",
       "cannot_connect": "Impossible de joindre le cloud MOVAhome",
+      "api_error": "Le cloud MOVAhome a renvoyé une erreur. Consultez les journaux.",
       "no_devices": "Aucun distributeur Mova sur ce compte",
       "unknown": "Erreur inattendue"
     },

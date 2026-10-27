@@ -52,6 +52,19 @@ class MovaCommandError(MovaError):
     """The device rejected a command."""
 
 
+def config_error_key(err: Exception | None, devices: Any = None) -> str | None:
+    """Map a login/list outcome to a config flow error key (None = success)."""
+    if err is None:
+        return None if devices else "no_devices"
+    if isinstance(err, MovaAuthError):
+        return "invalid_auth"
+    if isinstance(err, MovaConnectionError):
+        return "cannot_connect"
+    if isinstance(err, MovaApiError):
+        return "api_error"
+    return "unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class TokenSet:
     access_token: str

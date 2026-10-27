@@ -28,7 +28,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import MovaApiError, MovaAuthError, MovaClient, MovaConnectionError
+from .api import MovaClient
 from .const import (
     CONF_COUNTRY,
     CONF_DEFAULT_PORTIONS,
@@ -43,7 +43,7 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
-from .models import hash_password
+from .models import MovaError, config_error_key, hash_password
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,14 +59,17 @@ class MovaPetFeederConfigFlow(ConfigFlow, domain=DOMAIN):
         try:
             await client.login()
             devices = await client.list_devices()
-        except MovaAuthError:
-            return "invalid_auth"
-        except (MovaConnectionError, MovaApiError):
-            return "cannot_connect"
-        except Exception:
+        except MovaError as err:
+            # Exception messages are already masked (safe_detail / HTTP status only).
+            _LOGGER.warning(
+                "Mova login check failed: %s (code=%s) %s",
+                type(err).__name__, getattr(err, "code", None), err,
+            )
+            return config_error_key(err)
+        except Exception as err:
             _LOGGER.exception("Unexpected error during Mova login")
-            return "unknown"
-        return None if devices else "no_devices"
+            return config_error_key(err)
+        return config_error_key(None, devices)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

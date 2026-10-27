@@ -172,6 +172,15 @@ class CommandTest(unittest.TestCase):
         self.assertLessEqual(len(detail), 120)
         self.assertEqual(models.safe_detail(fixture("api_error.json")), "code=80001 msg=device offline")
 
+    def test_config_error_key(self) -> None:
+        key = models.config_error_key
+        self.assertEqual(key(models.MovaConnectionError("timeout")), "cannot_connect")
+        self.assertEqual(key(models.MovaApiError(429, "HTTP 429")), "api_error")
+        self.assertEqual(key(models.MovaAuthError("refused")), "invalid_auth")
+        self.assertEqual(key(ValueError("boom")), "unknown")
+        self.assertEqual(key(None, []), "no_devices")
+        self.assertIsNone(key(None, [object()]))
+
     def test_hash_password(self) -> None:
         self.assertRegex(models.hash_password("secret"), r"^[0-9a-f]{32}$")
 
