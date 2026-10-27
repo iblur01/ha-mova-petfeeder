@@ -186,7 +186,8 @@ class MovaClient:
     async def _post(self, path: str, body: Any = None) -> dict[str, Any]:
         """Authenticated POST; one re-login on HTTP 401."""
         url = f"{self._base}{path}"
-        kwargs = {} if body is None else {"json": body}
+        # Always a JSON body: the cloud refuses a POST without Content-Type (10003).
+        kwargs = {"json": {} if body is None else body}
         token = await self._ensure_token()
         status, payload = await self._raw_post(url, self._api_headers(token), **kwargs)
         if status == 401:
