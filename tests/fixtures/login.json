@@ -1,0 +1,11 @@
+{
+  "access_token": "fake-access-token-1",
+  "token_type": "bearer",
+  "refresh_token": "fake-refresh-token-1",
+  "expires_in": 7200,
+  "scope": "all",
+  "tenant_id": "000002",
+  "country": "FR",
+  "region": "eu",
+  "uid": "fake-uid"
+}

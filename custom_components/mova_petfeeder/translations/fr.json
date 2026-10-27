@@ -1,0 +1,165 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mova Pet Feeder",
+        "description": "Saisissez vos identifiants de l'application MOVAhome.",
+        "data": {
+          "username": "E-mail",
+          "password": "Mot de passe",
+          "country": "Région du serveur"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Saisir à nouveau le mot de passe",
+        "description": "Le cloud MOVAhome a refusé les identifiants enregistrés pour {username}.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiants invalides",
+      "cannot_connect": "Impossible de joindre le cloud MOVAhome",
+      "no_devices": "Aucun distributeur Mova sur ce compte",
+      "unknown": "Erreur inattendue"
+    },
+    "abort": {
+      "already_configured": "Compte déjà configuré",
+      "reauth_successful": "Réauthentification réussie"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "L'écriture du planning utilise un format non vérifié : activez-la seulement si vous acceptez le risque de modifier le planning du distributeur.",
+        "data": {
+          "scan_interval": "Intervalle d'interrogation",
+          "default_portions": "Portions par défaut du bouton Distribuer",
+          "enable_schedule_write": "Autoriser l'écriture du planning (expérimental)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "food_level": {
+        "name": "Niveau de croquettes"
+      },
+      "next_feed": {
+        "name": "Prochain repas",
+        "state_attributes": {
+          "slots": {
+            "name": "Créneaux"
+          }
+        }
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "En ligne"
+      }
+    },
+    "switch": {
+      "schedule_enabled": {
+        "name": "Planning"
+      },
+      "sound": {
+        "name": "Son"
+      }
+    },
+    "number": {
+      "portion_size": {
+        "name": "Taille de portion"
+      }
+    },
+    "button": {
+      "feed": {
+        "name": "Distribuer"
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_feeder": {
+      "message": "Distributeur inconnu."
+    },
+    "offline": {
+      "message": "Le distributeur est hors ligne."
+    },
+    "busy": {
+      "message": "Une commande est déjà en cours sur ce distributeur."
+    },
+    "auth_failed": {
+      "message": "Le cloud MOVAhome a refusé les identifiants, réauthentifiez-vous."
+    },
+    "command_failed": {
+      "message": "Échec de la commande : {error}"
+    },
+    "invalid_portions": {
+      "message": "Le nombre de portions doit être compris entre 1 et {max}."
+    },
+    "schedule_write_disabled": {
+      "message": "L'écriture du planning est désactivée. Activez-la dans les options de l'intégration."
+    },
+    "invalid_schedule": {
+      "message": "{slots} créneaux au maximum, chacun de 1 à {portions} portions."
+    },
+    "schedule_unknown": {
+      "message": "Le planning actuel n'a pas pu être décodé."
+    },
+    "slot_not_found": {
+      "message": "Aucun créneau à cette heure."
+    }
+  },
+  "services": {
+    "feed": {
+      "name": "Distribuer",
+      "description": "Distribuer des croquettes maintenant.",
+      "fields": {
+        "portions": {
+          "name": "Portions",
+          "description": "Nombre de portions (par défaut : l'option de l'intégration)."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Définir le planning",
+      "description": "Remplacer tout le planning (expérimental).",
+      "fields": {
+        "slots": {
+          "name": "Créneaux",
+          "description": "Liste de créneaux : time (HH:MM), portions, enabled."
+        }
+      }
+    },
+    "upsert_schedule_slot": {
+      "name": "Ajouter ou modifier un créneau",
+      "description": "Ajouter un créneau ou remplacer celui de la même heure (expérimental).",
+      "fields": {
+        "time": {
+          "name": "Heure",
+          "description": "Heure du créneau."
+        },
+        "portions": {
+          "name": "Portions",
+          "description": "Portions pour ce créneau."
+        },
+        "enabled": {
+          "name": "Actif",
+          "description": "Le créneau est actif."
+        }
+      }
+    },
+    "remove_schedule_slot": {
+      "name": "Supprimer un créneau",
+      "description": "Supprimer le créneau à cette heure (expérimental).",
+      "fields": {
+        "time": {
+          "name": "Heure",
+          "description": "Heure du créneau."
+        }
+      }
+    }
+  }
+}

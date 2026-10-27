@@ -9,14 +9,157 @@
           "password": "Password",
           "country": "Server region"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter the password",
+        "description": "The MOVAhome cloud refused the saved credentials for {username}.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid credentials",
-      "no_devices": "No Mova feeders found on this account"
+      "cannot_connect": "Cannot reach the MOVAhome cloud",
+      "no_devices": "No Mova feeders found on this account",
+      "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "Account already configured"
+      "already_configured": "Account already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Schedule writes use an unverified format: enable only if you accept the risk of changing the feeder schedule.",
+        "data": {
+          "scan_interval": "Polling interval",
+          "default_portions": "Default portions for the Feed button",
+          "enable_schedule_write": "Allow schedule writes (experimental)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "food_level": {
+        "name": "Food level"
+      },
+      "next_feed": {
+        "name": "Next feeding",
+        "state_attributes": {
+          "slots": {
+            "name": "Slots"
+          }
+        }
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Online"
+      }
+    },
+    "switch": {
+      "schedule_enabled": {
+        "name": "Schedule"
+      },
+      "sound": {
+        "name": "Sound"
+      }
+    },
+    "number": {
+      "portion_size": {
+        "name": "Portion size"
+      }
+    },
+    "button": {
+      "feed": {
+        "name": "Feed now"
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_feeder": {
+      "message": "Unknown feeder."
+    },
+    "offline": {
+      "message": "The feeder is offline."
+    },
+    "busy": {
+      "message": "A command is already running on this feeder."
+    },
+    "auth_failed": {
+      "message": "The MOVAhome cloud refused the credentials, please re-authenticate."
+    },
+    "command_failed": {
+      "message": "Command failed: {error}"
+    },
+    "invalid_portions": {
+      "message": "Portions must be between 1 and {max}."
+    },
+    "schedule_write_disabled": {
+      "message": "Schedule writes are disabled. Enable them in the integration options."
+    },
+    "invalid_schedule": {
+      "message": "At most {slots} slots, each with 1 to {portions} portions."
+    },
+    "schedule_unknown": {
+      "message": "The current schedule could not be decoded."
+    },
+    "slot_not_found": {
+      "message": "No slot at this time."
+    }
+  },
+  "services": {
+    "feed": {
+      "name": "Feed",
+      "description": "Dispense food now.",
+      "fields": {
+        "portions": {
+          "name": "Portions",
+          "description": "Number of portions (default: the integration option)."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Replace the whole feeding schedule (experimental).",
+      "fields": {
+        "slots": {
+          "name": "Slots",
+          "description": "List of slots: time (HH:MM), portions, enabled."
+        }
+      }
+    },
+    "upsert_schedule_slot": {
+      "name": "Add or update a slot",
+      "description": "Add a slot or replace the slot at the same time (experimental).",
+      "fields": {
+        "time": {
+          "name": "Time",
+          "description": "Slot time."
+        },
+        "portions": {
+          "name": "Portions",
+          "description": "Portions for this slot."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the slot is active."
+        }
+      }
+    },
+    "remove_schedule_slot": {
+      "name": "Remove a slot",
+      "description": "Remove the slot at this time (experimental).",
+      "fields": {
+        "time": {
+          "name": "Time",
+          "description": "Slot time."
+        }
+      }
     }
   }
 }

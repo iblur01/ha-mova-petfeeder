@@ -1,46 +1,55 @@
-import hashlib
-import json
+"""Async client for the MOVAhome cloud (Dreame-compatible API)."""
+
+from __future__ import annotations
+
+import asyncio
+import itertools
 import logging
 import random
-import requests
-import string
+import time
 from typing import Any
 
+import aiohttp
+
 from .const import (
-    ACTION_FEED_AIID,
-    ACTION_FEED_PIID,
-    ACTION_FEED_SIID,
+    APP_AUTH,
     FROM_FIELD,
-    PROP_FOOD_LEVEL,
-    PROP_ONLINE,
-    PROP_PORTION_SIZE,
-    PROP_SCHEDULE,
-    PROP_SCHEDULE_ON,
-    PROP_SOUND_ON,
-    PROP_STATUS,
+    REQUEST_TIMEOUT,
+    RLC,
+    TENANT_ID,
+    USER_AGENT,
 )
+from .models import (
+    MovaApiError,
+    MovaAuthError,
+    MovaCommandError,
+    MovaConnectionError,
+    MovaDevice,
+    MovaError,
+    PropValue,
+    TokenSet,
+    check_command_result,
+    parse_devices,
+    parse_props,
+    parse_token,
+    safe_detail,
+)
+
+__all__ = [
+    "MovaApiError",
+    "MovaAuthError",
+    "MovaClient",
+    "MovaCommandError",
+    "MovaConnectionError",
+    "MovaError",
+]
 
 _LOGGER = logging.getLogger(__name__)
 
-_SALT = "RAylYC%fmSKp7%Tq"
-_USER_AGENT = "Mova_Smarthome/1.5.59 (iPhone; iOS 16.0; Scale/3.00)"
-_APP_AUTH = "Basic ZHJlYW1lX2FwcHYxOkFQXmR2QHpAU1FZVnhOODg="
-_TENANT_ID = "000002"
-_RLC = "1c80b3787b2266776bcdc481f37d8fa42ba10a30af81a6df-1"
-
-# Number of consecutive empty cache reads tolerated before marking the feeder
-# unavailable. A single cloud blip should not flip every entity to gray.
-_UNAVAILABLE_GRACE = 3
-
-_POLL_PROPS = [
-    PROP_ONLINE,
-    PROP_STATUS,
-    PROP_SCHEDULE_ON,
-    PROP_SOUND_ON,
-    PROP_PORTION_SIZE,
-    PROP_SCHEDULE,
-    PROP_FOOD_LEVEL,
-]
+_AUTH_STATUSES = (400, 401, 403)
+_TOKEN_PATH = "/dreame-auth/oauth/token"
+_LIST_PATH = "/dreame-user-iot/iotuserbind/device/listV2"
+_PROPS_PATH = "/dreame-user-iot/iotstatus/props"
 
 
 def _base_url(country: str) -> str:
@@ -48,251 +57,188 @@ def _base_url(country: str) -> str:
     return f"https://{prefix}iot.mova-tech.com:13267"
 
 
-def _cmd_url(base: str, bind_domain: str) -> str:
-    prefix = bind_domain.split(".")[0]
-    return f"{base}/dreame-iot-com-{prefix}/device/sendCommand"
+class MovaClient:
+    """MOVAhome cloud client. `session` is any object with an aiohttp-like post()."""
 
-
-class MovaCloudAPI:
-    def __init__(self, username: str, password: str, country: str) -> None:
+    def __init__(
+        self, session: Any, username: str, password_hash: str, country: str
+    ) -> None:
+        self._session = session
         self._username = username
-        self._password = password
-        self._country = country
+        self._password_hash = password_hash
         self._base = _base_url(country)
-        self._token: str | None = None
-        self._uid: str | None = None
+        self._tokens: TokenSet | None = None
+        self._lock = asyncio.Lock()
+        # Single-threaded event loop: no lock needed around the counter.
+        self._ids = itertools.count(random.randint(1000, 90000))
 
-    def _headers_auth(self) -> dict:
+    @property
+    def token_expires_in(self) -> float | None:
+        """Seconds before the access token is renewed, None if not logged in."""
+        if self._tokens is None:
+            return None
+        return round(self._tokens.expires_at - time.monotonic())
+
+    async def _raw_post(
+        self, url: str, headers: dict[str, str], **kwargs: Any
+    ) -> tuple[int, dict[str, Any]]:
+        """POST and return (status, json). Auth statuses return an empty payload."""
+        try:
+            async with self._session.post(
+                url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+                **kwargs,
+            ) as resp:
+                status = resp.status
+                if status in _AUTH_STATUSES:
+                    return status, {}
+                if status >= 500:
+                    raise MovaConnectionError(f"HTTP {status}")
+                if status >= 400:
+                    raise MovaApiError(status, f"HTTP {status}")
+                try:
+                    payload = await resp.json(content_type=None)
+                except ValueError as err:
+                    raise MovaConnectionError("invalid JSON") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MovaConnectionError(type(err).__name__) from err
+        if not isinstance(payload, dict):
+            raise MovaConnectionError("unexpected JSON")
+        return status, payload
+
+    def _auth_headers(self) -> dict[str, str]:
         return {
-            "User-Agent": _USER_AGENT,
-            "Authorization": _APP_AUTH,
-            "Tenant-Id": _TENANT_ID,
-            "Dreame-Rlc": _RLC,
-            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": USER_AGENT,
+            "Authorization": APP_AUTH,
+            "Tenant-Id": TENANT_ID,
+            "Dreame-Rlc": RLC,
         }
 
-    def _headers_api(self) -> dict:
+    def _api_headers(self, token: str) -> dict[str, str]:
         return {
-            "User-Agent": _USER_AGENT,
-            "Dreame-Auth": self._token,
-            "Dreame-Rlc": _RLC,
-            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+            "Dreame-Auth": token,
+            "Dreame-Rlc": RLC,
         }
 
-    def login(self) -> bool:
-        pwd_hash = hashlib.md5(
-            (self._password + _SALT).encode("utf-8")
-        ).hexdigest()
-        body = (
-            f"platform=IOS&scope=all&grant_type=password"
-            f"&username={self._username}&password={pwd_hash}&type=account"
+    async def _token_request(self, form: dict[str, str]) -> None:
+        status, payload = await self._raw_post(
+            f"{self._base}{_TOKEN_PATH}", self._auth_headers(), data=form
         )
-        try:
-            resp = requests.post(
-                f"{self._base}/dreame-auth/oauth/token",
-                data=body,
-                headers=self._headers_auth(),
-                timeout=15,
-            ).json()
-            if "access_token" not in resp:
-                _LOGGER.error("Login failed: %s", resp)
-                return False
-            self._token = resp["access_token"]
-            self._uid = resp["uid"]
-            return True
-        except Exception as exc:
-            _LOGGER.error("Login exception: %s", exc)
-            return False
+        if status in _AUTH_STATUSES:
+            raise MovaAuthError(f"{form['grant_type']} refused (HTTP {status})")
+        self._tokens = parse_token(payload)
 
-    def _post_api(self, url: str, data: Any = None, timeout: int = 15, retry: bool = True) -> dict:
-        """Helper to send API request and handle token expiration."""
-        try:
-            kwargs = {"headers": self._headers_api(), "timeout": timeout}
-            if data is not None:
-                kwargs["data"] = data
-            resp = requests.post(url, **kwargs).json()
-            
-            # If token expired or unauthorized, cloud usually returns non-zero code.
-            # We try to re-login and retry once.
-            if resp.get("code") != 0 and retry:
-                _LOGGER.info("API request failed with code %s, trying to re-login", resp.get("code"))
-                if self.login():
-                    return self._post_api(url, data, timeout, retry=False)
-            return resp
-        except Exception as exc:
-            _LOGGER.error("API request exception %s: %s", type(exc).__name__, exc)
-            return {}
-
-    def get_feeders(self) -> list[dict]:
-        resp = self._post_api(
-            f"{self._base}/dreame-user-iot/iotuserbind/device/listV2",
-            timeout=15,
+    async def _login(self) -> None:
+        # aiohttp url-encodes the form, so "+" or "&" in the email are safe.
+        await self._token_request(
+            {
+                "platform": "IOS",
+                "scope": "all",
+                "grant_type": "password",
+                "username": self._username,
+                "password": self._password_hash,
+                "type": "account",
+            }
         )
-        if resp.get("code") != 0:
-            return []
-        records = resp.get("data", {}).get("page", {}).get("records", [])
-        return [d for d in records if "feeder" in d.get("model", "")]
+        _LOGGER.debug("Mova login succeeded")
 
-    def _send(self, did: str, bind_domain: str, method: str, params: Any, cmd_id: int) -> dict | None:
-        url = _cmd_url(self._base, bind_domain)
-        _LOGGER.debug("sendCommand url=%s method=%s", url, method)
-        payload = {
-            "did": did,
-            "id": cmd_id,
-            "data": {
-                "did": did,
+    async def _refresh(self, refresh_token: str) -> None:
+        # ASSUMPTION: grant taken from the Dreame app, never tested on Mova.
+        await self._token_request(
+            {
+                "platform": "IOS",
+                "scope": "all",
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            }
+        )
+        _LOGGER.debug("Mova token refreshed")
+
+    async def login(self) -> None:
+        """Force a full login (config flow)."""
+        async with self._lock:
+            await self._login()
+
+    async def _ensure_token(self, stale: str | None = None) -> str:
+        """Return a valid access token; `stale` is a token the cloud just refused."""
+        async with self._lock:
+            tokens = self._tokens
+            if (
+                tokens is not None
+                and tokens.access_token != stale
+                and time.monotonic() < tokens.expires_at
+            ):
+                return tokens.access_token
+            if tokens is not None and tokens.refresh_token and stale is None:
+                try:
+                    await self._refresh(tokens.refresh_token)
+                except MovaError as err:
+                    _LOGGER.debug(
+                        "Token refresh failed (%s), full login", type(err).__name__
+                    )
+                else:
+                    return self._tokens.access_token
+            await self._login()
+            return self._tokens.access_token
+
+    async def _post(self, path: str, body: Any = None) -> dict[str, Any]:
+        """Authenticated POST; one re-login on HTTP 401."""
+        url = f"{self._base}{path}"
+        kwargs = {} if body is None else {"json": body}
+        token = await self._ensure_token()
+        status, payload = await self._raw_post(url, self._api_headers(token), **kwargs)
+        if status == 401:
+            _LOGGER.debug("HTTP 401, logging in again")
+            token = await self._ensure_token(stale=token)
+            status, payload = await self._raw_post(
+                url, self._api_headers(token), **kwargs
+            )
+            if status == 401:
+                raise MovaAuthError("HTTP 401 after a new login")
+        if status in _AUTH_STATUSES:
+            raise MovaApiError(status, f"HTTP {status}")
+        if payload.get("code") != 0:
+            raise MovaApiError(payload.get("code"), safe_detail(payload))
+        return payload
+
+    async def list_devices(self) -> list[MovaDevice]:
+        """Return the feeders bound to the account."""
+        return parse_devices(await self._post(_LIST_PATH))
+
+    async def get_props(self, did: str, keys: tuple[str, ...]) -> dict[str, PropValue]:
+        """Read properties from the cloud cache (works while the device is offline)."""
+        payload = await self._post(_PROPS_PATH, {"did": did, "keys": ",".join(keys)})
+        return parse_props(payload)
+
+    async def _send(self, device: MovaDevice, method: str, params: Any) -> None:
+        prefix = device.bind_domain.split(".")[0]
+        if not prefix:
+            raise MovaCommandError("device has no bindDomain")
+        cmd_id = next(self._ids)
+        payload = await self._post(
+            f"/dreame-iot-com-{prefix}/device/sendCommand",
+            {
+                "did": device.did,
                 "id": cmd_id,
-                "method": method,
-                "params": params,
-                "from": FROM_FIELD,
+                "data": {
+                    "did": device.did,
+                    "id": cmd_id,
+                    "method": method,
+                    "params": params,
+                    "from": FROM_FIELD,
+                },
             },
-        }
-        resp = self._post_api(
-            url,
-            data=json.dumps(payload, separators=(",", ":")),
-            timeout=20,
         )
-        if resp.get("code") == 0 and resp.get("data"):
-            return resp["data"]
-        _LOGGER.warning("sendCommand failed code=%s msg=%s resp=%s", resp.get("code"), resp.get("msg"), resp)
-        return None
+        check_command_result(payload.get("data"))
 
-    def get_properties_cached(self, did: str, props: list[tuple[int, int]]) -> dict[tuple, Any]:
-        """Read properties from cloud cache — works even when device is offline."""
-        keys = ",".join(f"{s}.{p}" for s, p in props)
-        _LOGGER.debug("get_properties_cached did=%s keys=%s", did, keys)
-        resp = self._post_api(
-            f"{self._base}/dreame-user-iot/iotstatus/props",
-            data=json.dumps({"did": did, "keys": keys}, separators=(",", ":")),
-            timeout=15,
-        )
-        _LOGGER.debug("get_properties_cached response: %s", resp)
-        if resp.get("code") != 0:
-            _LOGGER.warning("get_properties_cached failed code=%s msg=%s", resp.get("code"), resp.get("msg"))
-            return {}
-        result = {}
-        for entry in resp.get("data") or []:
-            try:
-                s, p = entry["key"].split(".")
-                result[(int(s), int(p))] = entry["value"]
-            except (KeyError, ValueError, AttributeError):
-                pass
-        return result
+    async def set_properties(
+        self, device: MovaDevice, params: list[dict[str, Any]]
+    ) -> None:
+        """Write properties; raise MovaCommandError if the device refuses."""
+        await self._send(device, "set_properties", params)
 
-    def set_property(self, did: str, bind_domain: str, siid: int, piid: int, value: Any, cmd_id: int = 1) -> bool:
-        data = self._send(did, bind_domain, "set_properties",
-                          [{"siid": siid, "piid": piid, "value": value}], cmd_id)
-        if data and "result" in data:
-            return data["result"][0].get("code", -1) == 0
-        return False
-
-    def action_feed(self, did: str, bind_domain: str, portions: int = 1, cmd_id: int = 1) -> bool:
-        params = {
-            "did": did,
-            "siid": ACTION_FEED_SIID,
-            "aiid": ACTION_FEED_AIID,
-            "in": [{"piid": ACTION_FEED_PIID, "value": portions}],
-        }
-        data = self._send(did, bind_domain, "action", params, cmd_id)
-        if data and "result" in data:
-            return data["result"].get("code", -1) == 0
-        return False
-
-    @property
-    def uid(self) -> str | None:
-        return self._uid
-
-
-def _parse_schedule(hex_str: str) -> list[dict]:
-    """Decode schedule hex: each entry is FF HH MM portions enabled (5 bytes = 10 hex chars)."""
-    entries = []
-    s = hex_str.upper().replace(" ", "")
-    i = 0
-    while i + 10 <= len(s):
-        if s[i:i+2] == "FF":
-            try:
-                hour = int(s[i+2:i+4], 16)
-                minute = int(s[i+4:i+6], 16)
-                portions = int(s[i+6:i+8], 16)
-                enabled = int(s[i+8:i+10], 16) != 0
-                entries.append({"time": f"{hour:02d}:{minute:02d}", "portions": portions, "enabled": enabled})
-            except ValueError:
-                pass
-        i += 10
-    return entries
-
-
-class MovaFeeder:
-    def __init__(self, api: MovaCloudAPI, device_info: dict) -> None:
-        self._api = api
-        self.did: str = device_info["did"]
-        self.name: str = device_info.get("customName") or device_info.get("nickName") or device_info.get("model", "Mova Feeder")
-        self.model: str = device_info.get("model", "")
-        self.mac: str = device_info.get("mac", "")
-        self.bind_domain: str = device_info.get("bindDomain", "")
-        self._cmd_id = 1
-
-        self.online: bool = False
-        self.schedule_enabled: bool = True
-        self.sound_enabled: bool = True
-        self.portion_size: int = 1
-        self.manual_portions: int = 1
-        self.food_level: int = 0
-        self.schedule_hex: str = ""
-        self.schedule_entries: list[dict] = []
-        self.available: bool = False
-        self._empty_reads: int = 0
-
-    def _next_id(self) -> int:
-        self._cmd_id += 1
-        return self._cmd_id
-
-    def update(self) -> None:
-        props = self._api.get_properties_cached(self.did, _POLL_PROPS)
-        if not props:
-            # Tolerate a few empty cloud-cache reads before going unavailable,
-            # and keep the last known values meanwhile.
-            self._empty_reads += 1
-            if self._empty_reads >= _UNAVAILABLE_GRACE:
-                self.available = False
-            return
-        self._empty_reads = 0
-        self.available = True
-        # Only overwrite a field when its property is present in this read; the
-        # cache occasionally omits a key, and blanking it would flicker the UI.
-        if PROP_ONLINE in props:
-            self.online = int(props[PROP_ONLINE]) != 0
-        if PROP_SCHEDULE_ON in props:
-            self.schedule_enabled = int(props[PROP_SCHEDULE_ON]) != 0
-        if PROP_SOUND_ON in props:
-            self.sound_enabled = int(props[PROP_SOUND_ON]) != 0
-        if PROP_PORTION_SIZE in props:
-            self.portion_size = int(props[PROP_PORTION_SIZE])
-        if PROP_FOOD_LEVEL in props:
-            self.food_level = int(props[PROP_FOOD_LEVEL])
-        if PROP_SCHEDULE in props:
-            self.schedule_hex = str(props[PROP_SCHEDULE])
-            self.schedule_entries = _parse_schedule(self.schedule_hex)
-
-    def feed(self, portions: int | None = None) -> bool:
-        return self._api.action_feed(
-            self.did, self.bind_domain,
-            portions if portions is not None else self.manual_portions,
-            self._next_id(),
-        )
-
-    def set_manual_portions(self, n: int) -> None:
-        self.manual_portions = n
-
-    def set_schedule_enabled(self, enabled: bool) -> bool:
-        return self._api.set_property(self.did, self.bind_domain, *PROP_SCHEDULE_ON, enabled, self._next_id())
-
-    def set_sound_enabled(self, enabled: bool) -> bool:
-        return self._api.set_property(self.did, self.bind_domain, *PROP_SOUND_ON, enabled, self._next_id())
-
-    def set_portion_size(self, size: int) -> bool:
-        return self._api.set_property(self.did, self.bind_domain, *PROP_PORTION_SIZE, size, self._next_id())
-
-    @property
-    def unique_id_prefix(self) -> str:
-        return self.mac.replace(":", "").lower()
+    async def action(self, device: MovaDevice, params: dict[str, Any]) -> None:
+        """Run a MiOT action; raise MovaCommandError if the device refuses."""
+        await self._send(device, "action", params)

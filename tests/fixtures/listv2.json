@@ -1,0 +1,40 @@
+{
+  "code": 0,
+  "success": true,
+  "msg": "ok",
+  "data": {
+    "page": {
+      "records": [
+        {
+          "did": "-1000000001",
+          "model": "mova.feeder.q2401",
+          "ver": "1.6.10_1031",
+          "online": true,
+          "latestStatus": 1,
+          "customName": "",
+          "mac": "AA:BB:CC:DD:EE:FF",
+          "sn": "",
+          "property": "{\"mac\":\"AA:BB:CC:DD:EE:FF\"}",
+          "bindDomain": "20000.mt.eu.example.invalid:19974"
+        },
+        {
+          "did": "-1000000002",
+          "model": "mova.feeder.q2401",
+          "ver": "1.6.10_1031",
+          "online": false,
+          "customName": "Kitchen",
+          "mac": "",
+          "bindDomain": "20000.mt.eu.example.invalid:19974"
+        },
+        {
+          "did": "-1000000003",
+          "model": "mova.vacuum.r2216",
+          "online": true,
+          "mac": "11:22:33:44:55:66",
+          "bindDomain": "20000.mt.eu.example.invalid:19974"
+        }
+      ],
+      "total": "3"
+    }
+  }
+}

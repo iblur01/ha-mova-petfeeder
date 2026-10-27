@@ -1,0 +1,62 @@
+feed:
+  target:
+    entity:
+      integration: mova_petfeeder
+      domain: button
+  fields:
+    portions:
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+
+set_schedule:
+  target:
+    entity:
+      integration: mova_petfeeder
+      domain: sensor
+      device_class: timestamp
+  fields:
+    slots:
+      required: true
+      example: '[{"time": "08:00", "portions": 3, "enabled": true}]'
+      selector:
+        object:
+
+upsert_schedule_slot:
+  target:
+    entity:
+      integration: mova_petfeeder
+      domain: sensor
+      device_class: timestamp
+  fields:
+    time:
+      required: true
+      selector:
+        time:
+    portions:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    enabled:
+      default: true
+      selector:
+        boolean:
+
+remove_schedule_slot:
+  target:
+    entity:
+      integration: mova_petfeeder
+      domain: sensor
+      device_class: timestamp
+  fields:
+    time:
+      required: true
+      selector:
+        time:

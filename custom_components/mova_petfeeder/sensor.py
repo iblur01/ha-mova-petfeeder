@@ -1,96 +1,80 @@
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
-from homeassistant.config_entries import ConfigEntry
+"""Sensors for Mova feeders: food level and next scheduled feeding."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfMass
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .coordinator import MovaConfigEntry
+from .entity import MovaEntity
+from .models import next_feed
+from .services import async_register_schedule_services
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    data = hass.data[DOMAIN][entry.entry_id]
-    coordinator = data["coordinator"]
-    feeders = data["feeders"]
-    entities = []
-    for feeder in feeders:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: MovaConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    coordinator = entry.runtime_data
+    entities: list[SensorEntity] = []
+    for state in coordinator.data.values():
         entities += [
-            MovaPortionSizeSensor(coordinator, feeder),
-            MovaFoodLevelSensor(coordinator, feeder),
-            MovaScheduleSensor(coordinator, feeder),
+            MovaFoodLevelSensor(coordinator, state.device, "food_level"),
+            # unique_id kept from v1 ("schedule_sensor"), now a timestamp.
+            MovaNextFeedSensor(coordinator, state.device, "schedule_sensor"),
         ]
     async_add_entities(entities)
+    async_register_schedule_services(entity_platform.async_get_current_platform())
 
 
-class _MovaBaseSensor(CoordinatorEntity, SensorEntity):
-    _attr_has_entity_name = True
-
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator)
-        self._feeder = feeder
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._feeder.mac)},
-            name=self._feeder.name,
-            model=self._feeder.model,
-            manufacturer="Mova",
-        )
-
-    @property
-    def available(self) -> bool:
-        return self._feeder.available
-
-
-class MovaPortionSizeSensor(_MovaBaseSensor):
-    _attr_icon = "mdi:bowl"
-    _attr_name = "Portion size"
-    _attr_native_unit_of_measurement = "portions"
-
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_portion_size_sensor"
-
-    @property
-    def native_value(self):
-        return self._feeder.portion_size
-
-
-class MovaFoodLevelSensor(_MovaBaseSensor):
-    _attr_icon = "mdi:food-drumstick"
-    _attr_name = "Food level"
-    _attr_native_unit_of_measurement = "g"
+class MovaFoodLevelSensor(MovaEntity, SensorEntity):
+    _attr_translation_key = "food_level"
+    _attr_device_class = SensorDeviceClass.WEIGHT
+    _attr_native_unit_of_measurement = UnitOfMass.GRAMS
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_food_level"
+    @property
+    def native_value(self) -> int | None:
+        return self.state_data.food_level_g if self.state_data else None
+
+
+class MovaNextFeedSensor(MovaEntity, SensorEntity):
+    """Next feeding; carries the schedule actions."""
+
+    _attr_translation_key = "next_feed"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property
-    def native_value(self):
-        return self._feeder.food_level
-
-
-class MovaScheduleSensor(_MovaBaseSensor):
-    _attr_icon = "mdi:calendar-clock"
-    _attr_name = "Schedule"
-
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_schedule_sensor"
+    def native_value(self) -> datetime | None:
+        state = self.state_data
+        if state is None:
+            return None
+        # Slot times are device-local; assumed to match the HA time zone.
+        return next_feed(state.schedule, dt_util.now())
 
     @property
-    def native_value(self) -> str:
-        entries = self._feeder.schedule_entries
-        if not entries:
-            return "No schedule"
-        active = [e for e in entries if e["enabled"]]
-        return f"{len(active)}/{len(entries)} active"
-
-    @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
+        state = self.state_data
+        if state is None or state.schedule is None:
+            return {"slots": None}
         return {
-            f"slot_{i+1}": f"{e['time']} × {e['portions']} {'✓' if e['enabled'] else '✗'}"
-            for i, e in enumerate(self._feeder.schedule_entries)
+            "slots": [
+                {
+                    "time": s.time,
+                    "portions": s.portions,
+                    "enabled": s.enabled,
+                    "days_raw": s.days_raw,
+                }
+                for s in state.schedule
+            ]
         }

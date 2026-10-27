@@ -1,84 +1,59 @@
+"""Switches for Mova feeders: schedule and sound."""
+
+from __future__ import annotations
+
+from typing import Any
+
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import PROP_SCHEDULE_ON, PROP_SOUND_ON
+from .coordinator import MovaConfigEntry
+from .entity import MovaEntity
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    data = hass.data[DOMAIN][entry.entry_id]
-    coordinator = data["coordinator"]
-    feeders = data["feeders"]
-    entities = []
-    for feeder in feeders:
+async def async_setup_entry(
+    hass: HomeAssistant, entry: MovaConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    coordinator = entry.runtime_data
+    entities: list[MovaSwitch] = []
+    for state in coordinator.data.values():
         entities += [
-            MovaScheduleSwitch(coordinator, feeder),
-            MovaSoundSwitch(coordinator, feeder),
+            MovaScheduleSwitch(coordinator, state.device, "schedule"),
+            MovaSoundSwitch(coordinator, state.device, "sound"),
         ]
     async_add_entities(entities)
 
 
-class _MovaBaseSwitch(CoordinatorEntity, SwitchEntity):
-    _attr_has_entity_name = True
+class MovaSwitch(MovaEntity, SwitchEntity):
+    """Switch backed by one boolean property."""
 
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator)
-        self._feeder = feeder
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._feeder.mac)},
-            name=self._feeder.name,
-            model=self._feeder.model,
-            manufacturer="Mova",
-        )
+    _prop: tuple[int, int]
+    _field: str
 
     @property
-    def available(self) -> bool:
-        return self._feeder.available
+    def is_on(self) -> bool | None:
+        return getattr(self.state_data, self._field) if self.state_data else None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(self.did, self._prop, self._field, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(self.did, self._prop, self._field, False)
 
 
-class MovaScheduleSwitch(_MovaBaseSwitch):
-    _attr_icon = "mdi:calendar-clock"
-    _attr_name = "Schedule"
+class MovaScheduleSwitch(MovaSwitch):
+    """Property 3.2, exposed as is. Meaning NOT confirmed (0 with active slots); next_feed ignores it."""
 
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_schedule"
-
-    @property
-    def is_on(self) -> bool:
-        return self._feeder.schedule_enabled
-
-    async def async_turn_on(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(self._feeder.set_schedule_enabled, True)
-        await self.coordinator.async_request_refresh()
-
-    async def async_turn_off(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(self._feeder.set_schedule_enabled, False)
-        await self.coordinator.async_request_refresh()
+    _attr_translation_key = "schedule_enabled"
+    _prop = PROP_SCHEDULE_ON
+    _field = "schedule_enabled"
 
 
-class MovaSoundSwitch(_MovaBaseSwitch):
-    _attr_icon = "mdi:volume-high"
-    _attr_name = "Sound"
-
-    def __init__(self, coordinator, feeder) -> None:
-        super().__init__(coordinator, feeder)
-        self._attr_unique_id = f"{feeder.unique_id_prefix}_sound"
-
-    @property
-    def is_on(self) -> bool:
-        return self._feeder.sound_enabled
-
-    async def async_turn_on(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(self._feeder.set_sound_enabled, True)
-        await self.coordinator.async_request_refresh()
-
-    async def async_turn_off(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(self._feeder.set_sound_enabled, False)
-        await self.coordinator.async_request_refresh()
+class MovaSoundSwitch(MovaSwitch):
+    _attr_translation_key = "sound"
+    _attr_entity_category = EntityCategory.CONFIG
+    _prop = PROP_SOUND_ON
+    _field = "sound_enabled"

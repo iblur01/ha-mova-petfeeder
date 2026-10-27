@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "success": true,
+  "msg": "ok",
+  "data": [
+    {"key": "3.2", "value": null},
+    {"key": "3.3", "value": "abc", "updateDate": 1761562800000},
+    {"key": "3.4", "value": "5", "updateDate": 1761562800000},
+    {"key": "3.6", "value": "FF0800030", "updateDate": 1761562800000},
+    {"key": "4.1", "value": null, "updateDate": null},
+    {"key": "5.1"}
+  ]
+}
