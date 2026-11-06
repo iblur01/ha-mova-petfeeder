@@ -14,10 +14,11 @@ from .const import (
     ACTION_FEED_PIID,
     ACTION_FEED_SIID,
     PROP_FOOD_LEVEL,
-    PROP_PORTION_SIZE,
+    PROP_ANTI_GLUTTON,
+    PROP_ANTI_GLUTTON_THRESHOLD,
+    PROP_GRAMS_PER_PORTION,
+    PROP_NIGHT_MODE,
     PROP_SCHEDULE,
-    PROP_SCHEDULE_ON,
-    PROP_SOUND_ON,
     SALT,
     TOKEN_MARGIN,
 )
@@ -107,9 +108,10 @@ class ScheduleSlot:
 class FeederState:
     device: MovaDevice
     food_level_g: int | None
-    schedule_enabled: bool | None
-    sound_enabled: bool | None
-    portion_size: int | None
+    night_mode: bool | None
+    anti_glutton: bool | None
+    anti_glutton_threshold_g: int | None
+    grams_per_portion: int | None
     schedule: tuple[ScheduleSlot, ...] | None  # None if not decodable
     raw: dict[str, PropValue]
 
@@ -209,9 +211,12 @@ def build_state(device: MovaDevice, props: dict[str, PropValue]) -> FeederState:
     return FeederState(
         device=device,
         food_level_g=_int(props, PROP_FOOD_LEVEL),
-        schedule_enabled=_bool(props, PROP_SCHEDULE_ON),
-        sound_enabled=_bool(props, PROP_SOUND_ON),
-        portion_size=_int(props, PROP_PORTION_SIZE),
+        night_mode=(lambda value: None if value is None else value == 0)(
+            _int(props, PROP_NIGHT_MODE)
+        ),
+        anti_glutton=_bool(props, PROP_ANTI_GLUTTON),
+        anti_glutton_threshold_g=_int(props, PROP_ANTI_GLUTTON_THRESHOLD),
+        grams_per_portion=_int(props, PROP_GRAMS_PER_PORTION),
         schedule=schedule,
         raw=props,
     )
@@ -269,8 +274,8 @@ def next_feed(
 
     Slots are assumed to run every day (days byte 0xFF, the only value seen);
     any other days byte gives None since it is not decoded yet.
-    Property 3.2 (schedule_enabled) is ignored: its meaning is unconfirmed
-    (0 on the real device while slots are active).
+    Property 3.2 is the night-light mode, not a schedule master switch, and is
+    intentionally ignored when calculating the next scheduled feeding.
     """
     if not slots:
         return None

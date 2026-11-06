@@ -53,10 +53,12 @@ Les logs ne contiennent jamais le corps d'une requête ou d'une réponse (`safe_
 | sensor | `food_level` | 4.1 (g) | - | CONFIRMÉ mais dérive |
 | sensor | `next_feed` | 3.6 | - | créneaux CONFIRMÉS, jours NON CONFIRMÉS |
 | binary_sensor | `online` | `listV2.online` | diagnostic | CONFIRMÉ |
-| switch | `schedule_enabled` | 3.2 | - | sens NON CONFIRMÉ |
-| switch | `sound` | 3.3 | config | HYPOTHÈSE |
-| number | `portion_size` | 3.4 (1 à 50) | config | HYPOTHÈSE |
-| button | `feed` | action 3/1 | - | HYPOTHÈSE (jamais lancée par l'intégration sur l'appareil) |
+| switch | `night_mode` | 3.2 | - | confirmé dans le plugin, polarité inversée |
+| switch | `anti_glutton` | 3.3 | config | confirmé dans le plugin |
+| sensor | `anti_glutton_threshold` | 3.4 (g) | diagnostic | couplé au réglage app, lecture seule |
+| sensor | `grams_per_portion` | 3.5 (g) | diagnostic | confirmé dans le plugin |
+| binary_sensor | `calibration_needed` | masque 2.2, bit 16 | diagnostic | confirmé dans le plugin |
+| button | `feed` | action 3/1 | - | champ portions intégré à l'action HA |
 
 Firmware et modèle : `DeviceInfo` (`sw_version`, `model`). Pas d'entité « dernière distribution » : 5.2 est confirmée mais non exposée à ce stade.
 

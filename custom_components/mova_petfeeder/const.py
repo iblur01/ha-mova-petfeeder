@@ -40,18 +40,18 @@ FROM_FIELD = "I13bd2b"
 # MiOT property map (siid, piid)
 PROP_ONLINE = (2, 1)
 PROP_STATUS = (2, 2)
-PROP_SCHEDULE_ON = (3, 2)
-PROP_SOUND_ON = (3, 3)
-PROP_PORTION_SIZE = (3, 4)
-PROP_MAX_FEEDINGS = (3, 5)
+PROP_NIGHT_MODE = (3, 2)
+PROP_ANTI_GLUTTON = (3, 3)
+PROP_ANTI_GLUTTON_THRESHOLD = (3, 4)
+PROP_GRAMS_PER_PORTION = (3, 5)
 PROP_SCHEDULE = (3, 6)
 # Food remaining in the bowl, in grams. Verified against the app (6 g, 11 g).
 # Note: (4, 2) holds an unrelated value; (5, 1) does not exist on this model.
 PROP_FOOD_LEVEL = (4, 1)
 
 # Keys exposed as entities, and keys read only for diagnostics (same request).
-ENTITY_KEYS = ("3.2", "3.3", "3.4", "3.6", "4.1")
-DIAG_KEYS = ("2.1", "2.2", "2.3", "3.1", "3.5", "4.2", "4.3", "4.4", "5.2")
+ENTITY_KEYS = ("3.2", "3.3", "3.4", "3.5", "3.6", "4.1")
+DIAG_KEYS = ("2.1", "2.2", "2.3", "3.1", "4.2", "4.3", "4.4", "5.2")
 ALL_KEYS = ENTITY_KEYS + DIAG_KEYS
 
 # MiOT action: manual feed

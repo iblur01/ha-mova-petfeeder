@@ -34,7 +34,7 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "L'écriture du planning utilise un format non vérifié : activez-la seulement si vous acceptez le risque de modifier le planning du distributeur.",
+        "description": "L'écriture du planning utilise un format non vérifié. L'action Distribuer permet de choisir les portions dans sa fenêtre d'exécution.",
         "data": {
           "scan_interval": "Intervalle d'interrogation",
           "default_portions": "Portions par défaut du bouton Distribuer",
@@ -55,24 +55,36 @@
             "name": "Créneaux"
           }
         }
-      }
+      },
+      "anti_glutton_threshold": { "name": "Seuil du mode anti-glouton" },
+      "grams_per_portion": { "name": "Grammes par portion" }
     },
     "binary_sensor": {
       "online": {
         "name": "En ligne"
+      },
+      "calibration_needed": {
+        "name": "Calibrage de la balance nécessaire"
+      },
+      "device_error": {
+        "name": "Erreur de l'appareil"
+      },
+      "outlet_blocked": {
+        "name": "Sortie de croquettes bloquée"
+      },
+      "food_empty": {
+        "name": "Réservoir vide"
+      },
+      "low_battery": {
+        "name": "Batterie faible"
       }
     },
     "switch": {
-      "schedule_enabled": {
-        "name": "Planning"
+      "night_mode": {
+        "name": "Mode nuit"
       },
-      "sound": {
-        "name": "Son"
-      }
-    },
-    "number": {
-      "portion_size": {
-        "name": "Taille de portion"
+      "anti_glutton": {
+        "name": "Mode anti-glouton"
       }
     },
     "button": {
@@ -120,7 +132,7 @@
       "fields": {
         "portions": {
           "name": "Portions",
-          "description": "Nombre de portions (par défaut : l'option de l'intégration)."
+          "description": "Choisissez le nombre de portions dans cette même fenêtre. Laissez vide pour utiliser la valeur par défaut de l'intégration."
         }
       }
     },

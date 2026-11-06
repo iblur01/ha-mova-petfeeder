@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfMass
+from homeassistant.const import EntityCategory, UnitOfMass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -32,6 +32,10 @@ async def async_setup_entry(
             MovaFoodLevelSensor(coordinator, state.device, "food_level"),
             # unique_id kept from v1 ("schedule_sensor"), now a timestamp.
             MovaNextFeedSensor(coordinator, state.device, "schedule_sensor"),
+            MovaAntiGluttonThresholdSensor(
+                coordinator, state.device, "anti_glutton_threshold"
+            ),
+            MovaGramsPerPortionSensor(coordinator, state.device, "grams_per_portion"),
         ]
     async_add_entities(entities)
     async_register_schedule_services(entity_platform.async_get_current_platform())
@@ -78,3 +82,27 @@ class MovaNextFeedSensor(MovaEntity, SensorEntity):
                 for s in state.schedule
             ]
         }
+
+
+class MovaAntiGluttonThresholdSensor(MovaEntity, SensorEntity):
+    """Threshold used by anti-glutton mode; read-only because app settings couple it to serving size."""
+
+    _attr_translation_key = "anti_glutton_threshold"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_native_unit_of_measurement = UnitOfMass.GRAMS
+
+    @property
+    def native_value(self) -> int | None:
+        return self.state_data.anti_glutton_threshold_g if self.state_data else None
+
+
+class MovaGramsPerPortionSensor(MovaEntity, SensorEntity):
+    """Device serving weight used to convert portions to grams in the app."""
+
+    _attr_translation_key = "grams_per_portion"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_native_unit_of_measurement = UnitOfMass.GRAMS
+
+    @property
+    def native_value(self) -> int | None:
+        return self.state_data.grams_per_portion if self.state_data else None

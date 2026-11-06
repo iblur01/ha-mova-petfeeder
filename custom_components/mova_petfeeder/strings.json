@@ -34,7 +34,7 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Schedule writes use an unverified format: enable only if you accept the risk of changing the feeder schedule.",
+        "description": "Schedule writes use an unverified format. Feed now lets you choose the number of portions in its action form.",
         "data": {
           "scan_interval": "Polling interval",
           "default_portions": "Default portions for the Feed button",
@@ -55,24 +55,40 @@
             "name": "Slots"
           }
         }
+      },
+      "anti_glutton_threshold": {
+        "name": "Anti-glutton threshold"
+      },
+      "grams_per_portion": {
+        "name": "Grams per portion"
       }
     },
     "binary_sensor": {
       "online": {
         "name": "Online"
+      },
+      "calibration_needed": {
+        "name": "Scale calibration needed"
+      },
+      "device_error": {
+        "name": "Device error"
+      },
+      "outlet_blocked": {
+        "name": "Food outlet blocked"
+      },
+      "food_empty": {
+        "name": "Food empty"
+      },
+      "low_battery": {
+        "name": "Low battery"
       }
     },
     "switch": {
-      "schedule_enabled": {
-        "name": "Schedule"
+      "night_mode": {
+        "name": "Night mode"
       },
-      "sound": {
-        "name": "Sound"
-      }
-    },
-    "number": {
-      "portion_size": {
-        "name": "Portion size"
+      "anti_glutton": {
+        "name": "Anti-glutton mode"
       }
     },
     "button": {
@@ -120,7 +136,7 @@
       "fields": {
         "portions": {
           "name": "Portions",
-          "description": "Number of portions (default: the integration option)."
+          "description": "Choose how many portions to dispense in the same action form. Leave empty to use the configured default."
         }
       }
     },

@@ -11,13 +11,13 @@ Protocole d'observation (compte de test, 27/10/2026) : lecture de base, puis apr
 | Clé | Nom interne | Valeur observée | Statut |
 |---|---|---|---|
 | 2.1 | `PROP_ONLINE` | `1` | Sens NON CONFIRMÉ (probable en ligne). L'état utilisé par l'intégration vient de `listV2.online` |
-| 2.2 | `PROP_STATUS` | `0` | Sens NON CONFIRMÉ |
+| 2.2 | `faultCodeMask` | `0` | Masque de défauts du plugin : bits 1, 2, 4, 8, 16 = erreur appareil, blocage sortie, réservoir vide, alerte batterie faible, balance à recalibrer |
 | 2.3 | - | `4` (dernière remontée début octobre) | Sens NON CONFIRMÉ (code d'état ou d'erreur ?) |
 | 3.1 | - | `0` | Sens NON CONFIRMÉ. Sa date se met à jour sans changement de valeur |
-| 3.2 | `PROP_SCHEDULE_ON` | `0` | Sens NON CONFIRMÉ : vaut 0 alors que des créneaux sont actifs. Écrit par le switch `schedule_enabled`, ignoré par `next_feed` |
-| 3.3 | `PROP_SOUND_ON` | `0` | Probable son (0 = coupé) : HYPOTHÈSE, non retestée dans l'app |
-| 3.4 | `PROP_PORTION_SIZE` | `5` | HYPOTHÈSE (taille de portion) |
-| 3.5 | `PROP_MAX_FEEDINGS` | `5` | Sens NON CONFIRMÉ. Non exposé |
+| 3.2 | `pilotLampSwitch` | `0` | Mode nuit de l'app : `0` = activé, `1` = désactivé |
+| 3.3 | `preventFoodModel` | `0` | Mode anti-glouton, `1` = activé |
+| 3.4 | `preventFoodModelUp` | `5` | Seuil anti-glouton en grammes ; couplé au réglage de portions dans l'app |
+| 3.5 | `everyWeight` | `5` | Poids en grammes par portion, réglable dans l'app de 5 à 10 g |
 | 3.6 | `PROP_SCHEDULE` | `FF08000301FF0C000301FF12000501` | Planning, voir ci-dessous |
 | 4.1 | `PROP_FOOD_LEVEL` | `90`, puis `95` | Poids en grammes, cohérent avec l'app (CONFIRMÉ). Dérive : voir ci-dessous |
 | 4.2 | - | `20`, puis `22` | Sens NON CONFIRMÉ. Inchangé par la distribution et par les modifications de planning |
@@ -28,7 +28,7 @@ Protocole d'observation (compte de test, 27/10/2026) : lecture de base, puis apr
 
 Clés testées et absentes (`value` null) : 1.1-1.3, 2.4-2.7, 3.7-3.16, 4.5-4.11, 5.1, 5.3-5.8, 6.1-6.3, 7.1, 8.1, 9.1, 10.1.
 
-Les clés 2.1, 2.2, 2.3, 3.1, 3.5, 4.2, 4.3 et 4.4 (sens non confirmé) sont lues à titre de diagnostic uniquement : aucune entité ne les expose.
+La calibration est signalée par le bit 16 de 2.2. Une valeur manquante ou illisible reste inconnue et ne permet pas de conclure que la balance a été calibrée.
 
 ## 3.6 : planning
 
@@ -55,6 +55,6 @@ Notes :
 
 La valeur (92, 90, 95 g) est cohérente avec l'app. **Dérive** : la valeur évolue sans lien avec les distributions (90 devient 95 après une distribution d'1 portion), et l'app demande un recalibrage de la balance. Ne pas se fier à ce capteur pour une alerte de niveau bas tant que le recalibrage n'est pas fait.
 
-## 3.2 : sens non confirmé
+## Réglages retrouvés dans le plugin MOVAhome
 
-Vaut 0 pendant toute l'observation, y compris avec des créneaux actifs dans l'app. Il n'est donc pas un indicateur de « planning actif ». Le switch `schedule_enabled` l'expose tel quel, et `next_feed` l'ignore. Une écriture sur 3.2 n'a pas été validée sur l'appareil.
+Les mappings 3.2 à 3.5 proviennent du plugin Q2401 : le mode nuit inverse les valeurs booléennes, le mode anti-glouton utilise 3.3 et son seuil en grammes est 3.4. L'application conserve aussi le nombre de portions choisi dans une propriété cloud et recalcule 3.4 depuis `portions × everyWeight` (3.5). L'intégration expose donc 3.4 et 3.5 en lecture seule pour éviter de casser ce lien.

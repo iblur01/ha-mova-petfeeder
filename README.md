@@ -11,14 +11,15 @@ Intégration Home Assistant pour le distributeur de croquettes **Mova PF10** (`m
 | `food_level` | Capteur (g) | Poids de croquettes (propriété 4.1). Voir l'avertissement sur le recalibrage |
 | `next_feed` | Capteur (horodatage) | Prochaine distribution calculée depuis le planning ; attribut `slots` |
 | `online` | Capteur binaire (diagnostic) | Appareil en ligne dans le cloud |
-| `schedule_enabled` | Interrupteur | Propriété 3.2, **sens non confirmé** (vaut 0 avec des créneaux actifs) |
-| `sound` | Interrupteur (config) | Propriété 3.3 |
-| `portion_size` | Nombre (config, 1 à 50) | Propriété 3.4 |
-| `feed` | Bouton | Distribue `default_portions` (option, 1 par défaut) |
+| `night_mode` | Interrupteur | Mode nuit de l'app, propriété 3.2 (valeurs inversées : 0 = activé) |
+| `anti_glutton` | Interrupteur (config) | Mode anti-glouton de l'app, propriété 3.3 |
+| `anti_glutton_threshold` | Capteur diagnostic (g) | Seuil du mode anti-glouton, propriété 3.4 ; lecture seule car couplé au réglage de portions dans l'app |
+| `grams_per_portion` | Capteur diagnostic (g) | Poids configuré par portion, propriété 3.5 |
+| `feed` | Bouton avec action | L'action `mova_petfeeder.feed` ouvre un champ numérique pour choisir les portions puis envoyer dans la même fenêtre |
 
-Action `mova_petfeeder.feed(portions)` : cible le bouton `feed`, distribue 1 à 10 portions. Actions de planning (`set_schedule`, `upsert_schedule_slot`, `remove_schedule_slot`) sur `next_feed`, voir plus bas.
+Dans l'éditeur d'automatisation, choisissez l'action **Mova Pet Feeder: Feed** et indiquez les portions dans le champ de la même action (1 à 10). Si le champ est laissé vide, le bouton utilise `default_portions`. Actions de planning (`set_schedule`, `upsert_schedule_slot`, `remove_schedule_slot`) sur `next_feed`, voir plus bas.
 
-Statut sur l'appareil : lecture vérifiée ; écritures (switches, number, distribution) non validées par l'intégration sur l'appareil. Tableau complet dans [docs/FEATURES.md](docs/FEATURES.md). Non disponible : historique, statistiques, notifications, communication locale.
+Statut sur l'appareil : lecture et mappings MOVAhome vérifiés par analyse du plugin. La distribution reste une action cloud. Le seuil anti-glouton est exposé en lecture seule, car l'app le couple au nombre de portions et au poids par portion. Tableau complet dans [docs/FEATURES.md](docs/FEATURES.md). Non disponible : historique, statistiques, notifications, communication locale.
 
 ## Avertissements
 

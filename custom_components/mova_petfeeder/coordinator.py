@@ -181,7 +181,12 @@ class MovaCoordinator(DataUpdateCoordinator[dict[str, FeederState]]):
         )
 
     async def async_set_prop(
-        self, did: str, prop: tuple[int, int], field: str, value: Any
+        self,
+        did: str,
+        prop: tuple[int, int],
+        field: str,
+        value: Any,
+        optimistic_value: Any | None = None,
     ) -> None:
         """Write one property, then update `field` optimistically."""
         await self._async_command(
@@ -190,7 +195,9 @@ class MovaCoordinator(DataUpdateCoordinator[dict[str, FeederState]]):
                 dev, build_set_props(dev.did, [(*prop, value)])
             ),
         )
-        self._set_optimistic(did, **{field: value})
+        self._set_optimistic(
+            did, **{field: value if optimistic_value is None else optimistic_value}
+        )
 
     async def async_update_schedule(
         self,

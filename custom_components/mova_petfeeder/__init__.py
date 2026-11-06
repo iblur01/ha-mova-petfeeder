@@ -19,13 +19,18 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
-    Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
 ]
 
 # v1 entities that no longer exist (unique_id suffixes).
-OBSOLETE_SUFFIXES = ("_portion_size_sensor", "_manual_portions")
+OBSOLETE_SUFFIXES = (
+    "_portion_size_sensor",
+    "_manual_portions",
+    "_portion_size",
+    "_schedule",
+    "_sound",
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: MovaConfigEntry) -> bool:
@@ -58,7 +63,7 @@ async def _async_reload(hass: HomeAssistant, entry: MovaConfigEntry) -> None:
 
 
 def remove_obsolete_entities(hass: HomeAssistant, entry: MovaConfigEntry) -> None:
-    """Remove v1 entities replaced by the feed action or the number entity."""
+    """Remove entities whose old meanings or writes are no longer valid."""
     registry = er.async_get(hass)
     for reg in er.async_entries_for_config_entry(registry, entry.entry_id):
         if reg.unique_id.endswith(OBSOLETE_SUFFIXES):

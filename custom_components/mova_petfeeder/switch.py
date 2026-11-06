@@ -1,4 +1,4 @@
-"""Switches for Mova feeders: schedule and sound."""
+"""MOVAhome feeder settings with confirmed mappings."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import PROP_SCHEDULE_ON, PROP_SOUND_ON
+from .const import PROP_ANTI_GLUTTON, PROP_NIGHT_MODE
 from .coordinator import MovaConfigEntry
 from .entity import MovaEntity
 
@@ -21,8 +21,8 @@ async def async_setup_entry(
     entities: list[MovaSwitch] = []
     for state in coordinator.data.values():
         entities += [
-            MovaScheduleSwitch(coordinator, state.device, "schedule"),
-            MovaSoundSwitch(coordinator, state.device, "sound"),
+            MovaNightModeSwitch(coordinator, state.device, "night_mode"),
+            MovaAntiGluttonSwitch(coordinator, state.device, "anti_glutton"),
         ]
     async_add_entities(entities)
 
@@ -44,16 +44,38 @@ class MovaSwitch(MovaEntity, SwitchEntity):
         await self.coordinator.async_set_prop(self.did, self._prop, self._field, False)
 
 
-class MovaScheduleSwitch(MovaSwitch):
-    """Property 3.2, exposed as is. Meaning NOT confirmed (0 with active slots); next_feed ignores it."""
+class MovaNightModeSwitch(MovaSwitch):
+    """Night light mode uses inverted values in MOVAhome (0 means enabled)."""
 
-    _attr_translation_key = "schedule_enabled"
-    _prop = PROP_SCHEDULE_ON
-    _field = "schedule_enabled"
+    _attr_translation_key = "night_mode"
+    _prop = PROP_NIGHT_MODE
+    _field = "night_mode"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(
+            self.did, self._prop, self._field, 0, optimistic_value=True
+        )
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(
+            self.did, self._prop, self._field, 1, optimistic_value=False
+        )
 
 
-class MovaSoundSwitch(MovaSwitch):
-    _attr_translation_key = "sound"
+class MovaAntiGluttonSwitch(MovaSwitch):
+    """Anti-glutton mode switch (property 3.3)."""
+
+    _attr_translation_key = "anti_glutton"
     _attr_entity_category = EntityCategory.CONFIG
-    _prop = PROP_SOUND_ON
-    _field = "sound_enabled"
+    _prop = PROP_ANTI_GLUTTON
+    _field = "anti_glutton"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(
+            self.did, self._prop, self._field, 1, optimistic_value=True
+        )
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.coordinator.async_set_prop(
+            self.did, self._prop, self._field, 0, optimistic_value=False
+        )
